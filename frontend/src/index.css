@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn/ui CSS variables — light mode */
+    --background:   0 0% 98%;
+    --foreground:   222 47% 11%;
+    --card:         0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover:      0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary:      221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary:    210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted:        210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent:       210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive:  0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border:       214 32% 91%;
+    --input:        214 32% 91%;
+    --ring:         221 83% 53%;
+    --radius:       0.5rem;
+
+    /* ResumeX custom tokens */
+    --sidebar-bg:      222 47% 11%;
+    --sidebar-text:    210 40% 80%;
+    --sidebar-active:  221 83% 53%;
+    --sidebar-hover:   222 47% 16%;
+    --sidebar-width:   256px;
+    --navbar-height:   56px;
+    --brand:           221 83% 53%;
+    --brand-light:     214 100% 97%;
+    --success:         142 71% 45%;
+    --warning:         38 92% 50%;
+    --private-color:   38 92% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+
+  /* Code / mono elements */
+  code, pre, .font-mono {
+    font-family: 'DM Mono', monospace;
+  }
+}
+
+@layer components {
+  /* Sidebar link active indicator */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150;
+    color: hsl(var(--sidebar-text));
+  }
+  .sidebar-link:hover {
+    background: hsl(var(--sidebar-hover));
+    color: white;
+  }
+  .sidebar-link.active {
+    background: hsl(var(--sidebar-active) / 0.15);
+    color: hsl(var(--sidebar-active));
+    @apply font-semibold;
+  }
+  .sidebar-link.active .sidebar-icon {
+    @apply opacity-100;
+  }
+
+  /* Section completion dot */
+  .completion-dot {
+    @apply w-1.5 h-1.5 rounded-full flex-shrink-0;
+  }
+  .completion-dot.complete {
+    background: hsl(var(--success));
+  }
+  .completion-dot.incomplete {
+    @apply bg-muted-foreground/30;
+  }
+
+  /* Page fade-in */
+  .page-enter {
+    animation: pageEnter 0.2s ease-out;
+  }
+  @keyframes pageEnter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Card hover lift */
+  .card-hover {
+    @apply transition-all duration-200;
+  }
+  .card-hover:hover {
+    @apply shadow-md -translate-y-0.5;
+  }
+
+  /* Tag chip */
+  .tag-chip {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-secondary text-secondary-foreground;
+  }
+}
