@@ -12,13 +12,17 @@ const instance = axios.create({
 });
 
 // ─── Request interceptor — inject access token ────────────────────────────────
-// Import the store directly — Zustand is safe to import here because
-// auth.store.ts does NOT import from axios.ts (only api files do)
-// The circular dependency was a false concern — Zustand store has no axios import
 instance.interceptors.request.use(async (config) => {
-  const { useAuthStore } = await import('@/store/auth.store');
-  const token = useAuthStore.getState().accessToken;
+  const { useAuthStore }    = await import('@/store/auth.store');
+  const { useCompanyStore } = await import('@/store/company.store');
+
+  const userToken    = useAuthStore.getState().accessToken;
+  const companyToken = useCompanyStore.getState().accessToken;
+
+  const token = companyToken ?? userToken;
+
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
   return config;
 });
 
@@ -27,25 +31,55 @@ instance.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const original = error.config as RetryConfig;
-    if (error.response?.status === 401 && !original._retry) {
+
+    if (
+      error.response?.status === 401 &&
+      !original._retry &&
+      !original.url?.includes('/refresh')
+    ) {
       original._retry = true;
+
       try {
+        const { useAuthStore }    = await import('@/store/auth.store');
+        const { useCompanyStore } = await import('@/store/company.store');
+
+        const userStore    = useAuthStore.getState();
+        const companyStore = useCompanyStore.getState();
+
+        const isCompany = !!companyStore.accessToken;
+
+        const refreshRoute = isCompany
+          ? '/api/company/refresh'
+          : '/api/auth/refresh';
+
         const { data } = await axios.post(
-          '/api/auth/refresh',
+          refreshRoute,
           {},
           { withCredentials: true }
         );
+
         const newToken: string = data.data.accessToken;
-        const { useAuthStore } = await import('@/store/auth.store');
-        useAuthStore.getState().setToken(newToken);
+
+        if (isCompany) {
+          companyStore.setToken(newToken);
+        } else {
+          userStore.setToken(newToken);
+        }
+
         original.headers.Authorization = `Bearer ${newToken}`;
+
         return instance(original);
       } catch {
-        const { useAuthStore } = await import('@/store/auth.store');
+        const { useAuthStore }    = await import('@/store/auth.store');
+        const { useCompanyStore } = await import('@/store/company.store');
+
         useAuthStore.getState().clearAuth();
+        useCompanyStore.getState().clearAuth();
+
         window.location.href = '/login';
       }
     }
+
     return Promise.reject(error);
   }
 );

@@ -1,11 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, LogOut, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Search, LogOut, ChevronLeft, ChevronRight, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SECTION_CONFIG } from '@/lib/constants';
 import { ALL_SECTION_KEYS, type SectionKey, type VaultMeta } from '@/types/vault.types';
 import { useAuthStore } from '@/store/auth.store';
-import { useUIStore } from '@/store/ui.store';
-import { useAuth } from '@/hooks/useAuth';
+import { useUIStore }   from '@/store/ui.store';
+import { useAuth }      from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
@@ -34,7 +34,7 @@ export function Sidebar({ meta }: SidebarProps) {
         'border-r border-white/[0.06]',
       )}
       style={{
-        width: sidebarOpen ? 'var(--sidebar-width)' : '64px',
+        width:      sidebarOpen ? 'var(--sidebar-width)' : '64px',
         background: 'hsl(var(--sidebar-bg))',
       }}
     >
@@ -102,6 +102,16 @@ export function Sidebar({ meta }: SidebarProps) {
           {sidebarOpen && <span>Search</span>}
         </NavLink>
 
+        {/* Connect */}
+        <NavLink
+          to="/connect"
+          className={({ isActive }) => cn('sidebar-link', isActive && 'active')}
+          title={!sidebarOpen ? 'Connect' : undefined}
+        >
+          <Link2 className="w-4 h-4 flex-shrink-0 sidebar-icon opacity-60" />
+          {sidebarOpen && <span>Connect</span>}
+        </NavLink>
+
         {/* Divider */}
         {sidebarOpen && (
           <div className="px-3 pt-3 pb-1">
@@ -112,10 +122,10 @@ export function Sidebar({ meta }: SidebarProps) {
 
         {/* Section links */}
         {ALL_SECTION_KEYS.map((key: SectionKey) => {
-          const config = SECTION_CONFIG[key];
+          const config      = SECTION_CONFIG[key];
           const sectionMeta = meta?.sections[key];
-          const isComplete = sectionMeta?.isComplete ?? false;
-          const isPrivate  = sectionMeta?.isPrivate  ?? false;
+          const isComplete  = sectionMeta?.isComplete ?? false;
+          const isPrivate   = sectionMeta?.isPrivate  ?? false;
 
           return (
             <NavLink
@@ -129,9 +139,7 @@ export function Sidebar({ meta }: SidebarProps) {
                 <>
                   <span className="flex-1 truncate text-sm">{config.label}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {isPrivate && (
-                      <span className="text-[10px] text-amber-400/70">🔒</span>
-                    )}
+                    {isPrivate && <span className="text-[10px] text-amber-400/70">🔒</span>}
                     <span className={cn('completion-dot', isComplete ? 'complete' : 'incomplete')} />
                   </div>
                 </>
@@ -145,7 +153,10 @@ export function Sidebar({ meta }: SidebarProps) {
       <div className="border-t border-white/[0.06] p-3 flex-shrink-0">
         {sidebarOpen ? (
           <div className="flex items-center gap-2">
-            <NavLink to="/profile" className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity">
+            <NavLink
+              to="/profile"
+              className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+            >
               <Avatar className="w-7 h-7 flex-shrink-0">
                 <AvatarImage src={user?.avatar} />
                 <AvatarFallback className="bg-blue-600 text-white text-xs">{initials}</AvatarFallback>
@@ -173,7 +184,13 @@ export function Sidebar({ meta }: SidebarProps) {
                 <AvatarFallback className="bg-blue-600 text-white text-xs">{initials}</AvatarFallback>
               </Avatar>
             </NavLink>
-            <Button variant="ghost" size="icon" onClick={logout} className="w-7 h-7 text-white/40 hover:text-white hover:bg-white/10" title="Logout">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={logout}
+              className="w-7 h-7 text-white/40 hover:text-white hover:bg-white/10"
+              title="Logout"
+            >
               <LogOut className="w-3.5 h-3.5" />
             </Button>
           </div>

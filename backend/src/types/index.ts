@@ -9,9 +9,13 @@ export interface JwtPayload {
   role:   'user' | 'company';
 }
 
-// Extends Express Request with our decoded JWT payload
 export interface AuthRequest extends Request {
   user?: JwtPayload;
+}
+
+// Company-specific request — populated by protectCompany middleware
+export interface CompanyRequest extends Request {
+  company?: JwtPayload;
 }
 
 // ─── Vault ────────────────────────────────────────────────────────────────────
@@ -49,7 +53,6 @@ export const ALL_SECTION_KEYS: SectionKey[] = [
   'application_metadata',
 ];
 
-// Sections that hold exactly one entry (flat object, not a list)
 export const SINGLETON_SECTIONS: SectionKey[] = [
   'personal_info',
   'professional_summary',
@@ -57,10 +60,47 @@ export const SINGLETON_SECTIONS: SectionKey[] = [
 ];
 
 export interface SectionMeta {
-  isComplete:   boolean;
-  isPrivate:    boolean;
-  completedAt:  Date | null;
-  entryCount:   number;
+  isComplete:  boolean;
+  isPrivate:   boolean;
+  completedAt: Date | null;
+  entryCount:  number;
+}
+
+// ─── RefID ────────────────────────────────────────────────────────────────────
+
+// A single requested field — either a whole section or specific fields within it
+export interface RequestedField {
+  section: SectionKey;
+  fields?: string[]; // if absent, entire section is requested
+}
+
+// ─── Permission ───────────────────────────────────────────────────────────────
+
+export interface PermissionDoc {
+  _id:            Types.ObjectId;
+  userId:         Types.ObjectId;
+  companyId:      Types.ObjectId;
+  refId:          Types.ObjectId;
+  refIdCode:      string;
+  grantedFields:  RequestedField[];
+  scopedToken:    string;   // bcrypt hash — never returned raw
+  expiresAt:      Date;
+  grantedAt:      Date;
+  isRevoked:      boolean;
+}
+
+// ─── Access Log ───────────────────────────────────────────────────────────────
+
+export interface AccessLogDoc {
+  _id:             Types.ObjectId;
+  companyId:       Types.ObjectId;
+  userId:          Types.ObjectId;
+  permissionId:    Types.ObjectId;
+  refIdCode:       string;
+  fieldsAccessed:  RequestedField[];
+  ip:              string;
+  userAgent:       string;
+  accessedAt:      Date;
 }
 
 // ─── API Response ─────────────────────────────────────────────────────────────
