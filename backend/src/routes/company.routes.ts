@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { Response, Request } from 'express';
 import { asyncHandler } from '../middleware/error.middleware';
 import { protectCompany } from '../middleware/protectCompany';
-import { scopedAccess } from '../middleware/scopedAccess';
 import { validateCompanyRegister, validateCompanyLogin } from '../validators/company.validator';
 import { sendSuccess, sendError } from '../utils/response';
 import * as CompanyService from '../services/company.service';
@@ -10,18 +9,18 @@ import * as AccessService from '../services/access.service';
 import * as RefIDService from '../services/refid.service';
 import { AccessLogModel } from '../models/AccessLog';
 import { CompanyModel } from '../models/Company';
+import { PermissionModel } from '../models/Permission';
 import { AppError } from '../utils/AppError';
 import type { CompanyRequest } from '../types';
-import type { ScopedRequest } from '../middleware/scopedAccess';
 import { env } from '../config/env';
 
 const router = Router();
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure:   env.isProd,
+  secure: env.isProd,
   sameSite: 'strict' as const,
-  maxAge:   7 * 24 * 60 * 60 * 1000,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -69,11 +68,13 @@ router.patch('/profile', protectCompany, asyncHandler(async (req: CompanyRequest
   const { name, website, industry } = req.body;
   const company = await CompanyModel.findByIdAndUpdate(
     req.company!.userId,
-    { $set: {
-      ...(name                  !== undefined && { name }),
-      ...(website               !== undefined && { website }),
-      ...(industry              !== undefined && { industry }),
-    }},
+    {
+      $set: {
+        ...(name !== undefined && { name }),
+        ...(website !== undefined && { website }),
+        ...(industry !== undefined && { industry }),
+      }
+    },
     { new: true }
   );
   if (!company) throw new AppError('Company not found', 404);
@@ -127,27 +128,35 @@ router.get('/refid/:refCode/candidates', protectCompany, asyncHandler(async (req
 }));
 
 // ─── Scoped candidate access ──────────────────────────────────────────────────
-
-// GET /api/company/token/:permissionId — retrieve encrypted scoped token
-// Must be above /candidate/:userId to avoid route conflicts
-router.get('/token/:permissionId', protectCompany, asyncHandler(async (req: CompanyRequest, res: Response) => {
-  const rawToken = await AccessService.getScopedToken(req.params.permissionId, req.company!.userId);
-  sendSuccess(res, 'Token retrieved', { rawToken });
-}));
-
 // GET /api/company/candidate/:userId — view candidate data using scoped token
 router.get(
   '/candidate/:userId',
   protectCompany,
-  scopedAccess,
-  asyncHandler(async (req: ScopedRequest, res: Response) => {
+  asyncHandler(async (req: CompanyRequest, res: Response) => {
+    const permissionId = req.query.permissionId as string;
+
+    if (!permissionId) {
+      throw new AppError('Permission ID is required', 400);
+    }
+
+    const permission = await PermissionModel.findOne({
+      _id: permissionId,
+      userId: req.params.userId,
+      companyId: req.company!.userId,
+      isRevoked: false,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!permission) {
+      throw new AppError('Permission not found or expired', 403);
+    }
+
     const data = await AccessService.getCandidateData(
-      req.params.userId,
-      req.permission!._id.toString(),
-      req.company!.userId,
+      permission,
       req.ip || 'unknown',
-      req.headers['user-agent'] || 'unknown',
+      req.headers['user-agent'] || 'unknown'
     );
+
     sendSuccess(res, 'Candidate data fetched', data);
   })
 );

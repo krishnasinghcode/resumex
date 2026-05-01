@@ -31,13 +31,9 @@ export const companyApi = {
   getRefIDCandidates: (refCode: string) =>
     api.get(`/api/company/refid/${refCode}/candidates`),
 
-  getCandidateData: (userId: string, scopedToken: string) =>
-  api.get(`/api/company/candidate/${userId}`, {
-    headers: { 'X-Scoped-Token': scopedToken },
-  }),
+  getCandidateData: (userId: string, permissionId: string) =>
+    api.get(`/api/company/candidate/${userId}?permissionId=${permissionId}`),
   
-  getScopedToken: (permissionId: string) =>
-  api.get(`/api/company/token/${permissionId}`),
 
   // ── Access logs ───────────────────────────────────────────────────────────
   getAccessLogs: () =>

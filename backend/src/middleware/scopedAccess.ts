@@ -82,8 +82,7 @@ export const scopedAccess = async (
   console.log('---- Scoped Access Middleware Hit ----');
 
   // Scoped token travels in its own header — separate from the company JWT
-  const rawToken = req.headers['x-scoped-token'] as string | undefined;
-
+  const rawToken = req.header('x-scoped-token');
   console.log('Scoped token header:', rawToken);
 
   if (!rawToken) {

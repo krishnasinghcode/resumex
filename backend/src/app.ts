@@ -17,13 +17,31 @@ const app = express();
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet());
 
-// ─── CORS ─────────────────────────────────────────────────────────────────────
+// ─── CORS (PROPER VERSION) ────────────────────────────────────────────────────
+
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.EXTENSION_URL
+]
+.filter(Boolean)
+.map(o => o.trim());
+
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin: (origin, callback) => {
+      // Allow tools like Postman / curl (no origin)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.error("❌ CORS blocked:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -41,8 +59,6 @@ if (env.isDev) {
 }
 
 // ─── Swagger UI (dev only) ────────────────────────────────────────────────────
-// Visit: http://localhost:5000/api/docs
-// Helmet's CSP blocks Swagger's inline scripts — disable it for this path only
 if (env.isDev) {
   app.use(
     '/api/docs',
@@ -51,16 +67,15 @@ if (env.isDev) {
     swaggerUi.setup(swaggerSpec, {
       customSiteTitle: 'ResumeX API Docs',
       swaggerOptions: {
-        persistAuthorization: true,    // keeps token filled in after page refresh
-        displayRequestDuration: true,  // shows ms taken per request
-        filter: true,                  // search bar to filter endpoints
-        tryItOutEnabled: true,         // "Try it out" open by default
-        defaultModelsExpandDepth: -1,  // hides the Schemas section at the bottom
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        filter: true,
+        tryItOutEnabled: true,
+        defaultModelsExpandDepth: -1,
       },
     })
   );
 
-  // Raw JSON spec — paste this URL into Postman "Import → URL" to auto-generate collection
   app.get('/api/docs.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
@@ -87,7 +102,7 @@ app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-// ─── Global error handler (must be last) ─────────────────────────────────────
+// ─── Global error handler ─────────────────────────────────────────────────────
 app.use(globalErrorHandler);
 
 export default app;

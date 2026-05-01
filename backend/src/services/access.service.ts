@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import { PermissionModel } from '../models/Permission';
+import { PermissionModel, type IPermission } from '../models/Permission';
 import { AccessLogModel } from '../models/AccessLog';
 import { RefIDModel } from '../models/RefID';
 import { AppError } from '../utils/AppError';
@@ -38,36 +38,30 @@ export const grantAccess = async (userId: string, refCode: string) => {
     refId: refID._id,
     refIdCode: refID.code,
     grantedFields: refID.requestedFields,
-    scopedToken: hashedToken,          // bcrypt hash — for verification
-    scopedTokenEncrypted: encrypt(rawToken),    // AES encrypted — for retrieval
+    scopedToken: hashedToken,
     expiresAt,
   });
 
-  // Raw token returned once — after this only the hash exists
-  return { alreadyGranted: false, permission };
+  // NOTE: Ideally return rawToken here instead of storing encrypted version
+return { alreadyGranted: false, permission, rawToken };
 };
 
 // ─── Fetch candidate data scoped to granted fields ────────────────────────────
 
 export const getCandidateData = async (
-  userId: string,
-  permissionId: string,
-  companyId: string,
+  permission: IPermission,
   ip: string,
   userAgent: string,
 ) => {
-  const permission = await PermissionModel.findOne({
-    _id: permissionId,
-    userId,
-    companyId,
-    isRevoked: false,
-    expiresAt: { $gt: new Date() },
-  });
-
-  if (!permission) throw new AppError('Permission not found or expired', 403);
+  // Use permission directly (already validated in middleware)
+  const userId = permission.userId;
+  const companyId = permission.companyId;
 
   const VaultSectionModel = getVaultSectionModel();
-  const grantedSections = permission.grantedFields.map((f: RequestedField) => f.section);
+
+  const grantedSections = permission.grantedFields.map(
+    (f: RequestedField) => f.section
+  );
 
   const sections = await VaultSectionModel.find({
     userId,
@@ -84,25 +78,32 @@ export const getCandidateData = async (
 
     if (!grantConfig) continue;
 
-    if (!grantConfig.fields || grantConfig.fields.length === 0) {
+    // ✅ FIX: only undefined means full access
+    if (grantConfig.fields === undefined) {
       filteredData[section.sectionKey] = section.entries;
       continue;
     }
 
-    filteredData[section.sectionKey] = section.entries.map((entry: Record<string, unknown>) => {
-      const filtered: Record<string, unknown> = { _id: entry._id };
-      grantConfig.fields!.forEach((field: string) => {
-        if (entry[field] !== undefined) filtered[field] = entry[field];
-      });
-      return filtered;
-    });
+    filteredData[section.sectionKey] = section.entries.map(
+      (entry: Record<string, unknown>) => {
+        const filtered: Record<string, unknown> = { _id: entry._id };
+
+        grantConfig.fields!.forEach((field: string) => {
+          if (entry[field] !== undefined) {
+            filtered[field] = entry[field];
+          }
+        });
+
+        return filtered;
+      }
+    );
   }
 
   // Write immutable access log
   await AccessLogModel.create({
     companyId,
     userId,
-    permissionId,
+    permissionId: permission._id,
     refIdCode: permission.refIdCode,
     fieldsAccessed: permission.grantedFields,
     ip,
@@ -129,22 +130,4 @@ export const getUserGrants = async (userId: string) => {
     .populate('companyId', 'name website')
     .populate('refId', 'jobTitle requestedFields accessDuration')
     .sort({ grantedAt: -1 });
-};
-
-// Called by company to retrieve the raw scoped token for a specific permission
-export const getScopedToken = async (
-  permissionId: string,
-  companyId:    string,
-): Promise<string> => {
-  const permission = await PermissionModel.findOne({
-    _id:       permissionId,
-    companyId,
-    isRevoked: false,
-    expiresAt: { $gt: new Date() },
-  }).select('+scopedTokenEncrypted');
-
-  if (!permission)              throw new AppError('Permission not found or expired', 403);
-  if (!permission.scopedTokenEncrypted) throw new AppError('Scoped token not available', 404);
-
-  return decrypt(permission.scopedTokenEncrypted);
 };

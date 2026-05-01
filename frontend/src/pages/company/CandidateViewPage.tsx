@@ -19,33 +19,29 @@ export default function CandidateViewPage() {
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) return;
+  if (!userId) return;
 
-    const permissionId = searchParams.get('permission');
-    if (!permissionId) {
-      setError('Permission ID missing from URL');
+  const scopedToken = searchParams.get('permission');
+
+  if (!scopedToken) {
+    setError('Scoped token missing from URL');
+    setLoading(false);
+    return;
+  }
+
+  const load = async () => {
+    try {
+      const dataRes = await companyApi.getCandidateData(userId, scopedToken);
+      setData(dataRes.data.data);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
       setLoading(false);
-      return;
     }
+  };
 
-    const load = async () => {
-      try {
-        // Step 1 — fetch the scoped token from the server (company must own it)
-        const tokenRes  = await companyApi.getScopedToken(permissionId);
-        const scopedToken = tokenRes.data.data.rawToken;
-
-        // Step 2 — fetch candidate data using the scoped token
-        const dataRes = await companyApi.getCandidateData(userId, scopedToken);
-        setData(dataRes.data.data);
-      } catch (err) {
-        setError(getErrorMessage(err));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void load();
-  }, [userId, searchParams]);
+  void load();
+}, [userId, searchParams]);
 
   return (
     <div className="min-h-screen bg-background">

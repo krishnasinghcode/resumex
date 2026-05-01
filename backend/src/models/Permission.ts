@@ -11,7 +11,7 @@ export interface IPermission extends Document {
   expiresAt: Date;
   grantedAt: Date;
   isRevoked: boolean;
-  scopedTokenEncrypted:String;
+  scopedTokenEncrypted: String;
 }
 
 const PermissionSchema = new Schema<IPermission>(
@@ -37,10 +37,18 @@ const PermissionSchema = new Schema<IPermission>(
       type: String,
       required: true,
     },
-    grantedFields: {
-      type: Schema.Types.Mixed,
-      required: true,
-    },
+    grantedFields: [
+      {
+        section: {
+          type: String,
+          required: true,
+        },
+        fields: {
+          type: [String],
+          default: undefined,
+        },
+      },
+    ],
     scopedToken: {
       type: String,
       select: false,
@@ -58,10 +66,6 @@ const PermissionSchema = new Schema<IPermission>(
       type: Boolean,
       default: false,
       index: true,
-    },
-    scopedTokenEncrypted: {
-      type: String,
-      select: false,
     }
   },
   { timestamps: true }
