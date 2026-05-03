@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "AutoVault Extension",
+  "version": "1.0",
+  "description": "Auto-fill forms from your vault",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://localhost:5000/*", "https://docs.google.com/*"],
+  "background": {
+    "service_worker": "src/background/background.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/content.ts"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -5,6 +5,8 @@ import userRoutes     from './user.routes';
 import referenceRoutes from './reference.routes';
 import companyRoutes  from './company.routes';
 import refidRoutes    from './refid.routes';
+import extensionRoutes from './extension.routes';
+
 
 export const registerRoutes = (app: Express): void => {
   app.use('/api/auth',      authRoutes);
@@ -13,4 +15,5 @@ export const registerRoutes = (app: Express): void => {
   app.use('/api/reference', referenceRoutes);
   app.use('/api/company',   companyRoutes);
   app.use('/api/refid',     refidRoutes);
+  app.use('/api/extension', extensionRoutes);
 };
