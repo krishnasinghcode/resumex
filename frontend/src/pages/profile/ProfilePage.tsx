@@ -26,7 +26,7 @@ const profileSchema = z.object({
 });
 
 const passwordSchema = z.object({
-  currentPassword: z.string().min(1, 'Required'),
+  currentPassword: z.string().optional(),
   newPassword:     z.string()
     .min(8, 'At least 8 characters')
     .regex(/[A-Z]/, 'At least one uppercase letter')
@@ -171,10 +171,9 @@ export default function ProfilePage() {
         </section>
 
         {/* ── Change password (local accounts only) ────────────────── */}
-        {user?.authProvider === 'local' && (
-          <section className="rounded-xl border bg-card p-5 space-y-5">
+        <section className="rounded-xl border bg-card p-5 space-y-5">
             <div>
-              <h2 className="font-semibold text-sm">Change password</h2>
+              <h2 className="font-semibold text-sm">{user?.authProvider === 'google' ? 'Set password for extension login' : 'Change password'}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">Choose a strong password with 8+ characters</p>
             </div>
 
@@ -183,13 +182,13 @@ export default function ProfilePage() {
             {passwordError && <ErrorBanner message={passwordError} onDismiss={() => setPasswordError(null)} />}
 
             <form onSubmit={passwordForm.handleSubmit(savePassword)} className="space-y-4">
-              <div className="space-y-1.5">
+              {user?.authProvider !== 'google' && (<div className="space-y-1.5">
                 <Label htmlFor="currentPassword">Current password</Label>
                 <Input id="currentPassword" type="password" {...passwordForm.register('currentPassword')} />
                 {passwordForm.formState.errors.currentPassword && (
                   <p className="text-xs text-destructive">{passwordForm.formState.errors.currentPassword.message}</p>
                 )}
-              </div>
+              </div>)}
               <div className="space-y-1.5">
                 <Label htmlFor="newPassword">New password</Label>
                 <Input id="newPassword" type="password" {...passwordForm.register('newPassword')} />
@@ -209,7 +208,6 @@ export default function ProfilePage() {
               </Button>
             </form>
           </section>
-        )}
 
         {/* ── Danger zone ──────────────────────────────────────────── */}
         <section className="rounded-xl border border-destructive/20 bg-card p-5 space-y-4">
@@ -265,3 +263,8 @@ export default function ProfilePage() {
     </PageWrapper>
   );
 }
+
+
+
+
+

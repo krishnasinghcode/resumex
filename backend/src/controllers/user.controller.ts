@@ -44,16 +44,12 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
   const { currentPassword, newPassword } = req.body;
 
-  if (!currentPassword || !newPassword) {
-    sendError(res, 'currentPassword and newPassword are required', 400);
+  if (!newPassword) {
+    sendError(res, 'newPassword is required', 400);
     return;
   }
   if (newPassword.length < 8) {
     sendError(res, 'New password must be at least 8 characters', 400);
-    return;
-  }
-  if (currentPassword === newPassword) {
-    sendError(res, 'New password must differ from current password', 400);
     return;
   }
 
@@ -61,7 +57,20 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
   if (!user) { sendError(res, 'User not found', 404); return; }
 
   if (user.authProvider === 'google' && !user.password) {
-    sendError(res, 'Google OAuth accounts cannot change password here', 400);
+    // Setting password for the first time for a Google user
+    user.password = newPassword;
+    await user.save();
+    sendSuccess(res, 'Password set successfully for Google account. You can now login to the extension.');
+    return;
+  }
+
+  if (!currentPassword) {
+    sendError(res, 'currentPassword is required', 400);
+    return;
+  }
+
+  if (currentPassword === newPassword) {
+    sendError(res, 'New password must differ from current password', 400);
     return;
   }
 

@@ -68,6 +68,37 @@ const FIELD_PATTERNS: Record<string, string[]> = {
   'legal.workAuthorization': ['work authorization', 'authorization', 'visa status', 'work permit'],
   'legal.requiresSponsorship': ['require sponsorship', 'need sponsorship', 'visa sponsorship'],
   'legal.willingToRelocate': ['willing to relocate', 'open to relocation', 'relocation'],
+
+  // Projects (latest)
+  'projects.title': ['project title', 'project name'],
+  'projects.description': ['project description', 'project details'],
+  'projects.url': ['project url', 'project link'],
+  'projects.startDate': ['project start date'],
+  'projects.endDate': ['project end date'],
+
+  // Certifications (latest)
+  'certifications.name': ['certification name', 'certificate', 'certification'],
+  'certifications.issuer': ['certification issuer', 'issuing organization', 'authority'],
+  'certifications.date': ['certification date', 'issue date'],
+  'certifications.url': ['certification url', 'credential url'],
+
+  // Achievements
+  'achievements.title': ['achievement title', 'award', 'honor'],
+  'achievements.description': ['achievement description', 'award details'],
+  'achievements.date': ['achievement date', 'award date'],
+
+  // Publications
+  'publications.title': ['publication title', 'paper title', 'article title'],
+  'publications.publisher': ['publisher', 'journal', 'conference'],
+  'publications.date': ['publication date', 'published date'],
+  'publications.url': ['publication url', 'paper link'],
+
+  // References
+  'references.name': ['reference name', 'referee name'],
+  'references.relation': ['reference relation', 'relationship'],
+  'references.company': ['reference company', 'referee company'],
+  'references.phone': ['reference phone', 'referee phone'],
+  'references.email': ['reference email', 'referee email'],
 };
 
 // Normalize field name for matching
@@ -237,6 +268,38 @@ export async function getAutofillData(userId: string): Promise<Record<string, an
         // For skills, provide array of skill names
         data.skills = publicEntries.map((e: any) => e.name);
       }
+
+      if (section.sectionKey === 'projects') {
+        const latest = publicEntries.sort((a: any, b: any) => 
+          new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime()
+        )[0];
+        if (latest) data.projects = flattenEntry(latest);
+      }
+      
+      if (section.sectionKey === 'certifications') {
+        const latest = publicEntries.sort((a: any, b: any) => 
+          new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+        )[0];
+        if (latest) data.certifications = flattenEntry(latest);
+      }
+
+      if (section.sectionKey === 'achievements') {
+        const latest = publicEntries.sort((a: any, b: any) => 
+          new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+        )[0];
+        if (latest) data.achievements = flattenEntry(latest);
+      }
+
+      if (section.sectionKey === 'publications') {
+        const latest = publicEntries.sort((a: any, b: any) => 
+          new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+        )[0];
+        if (latest) data.publications = flattenEntry(latest);
+      }
+
+      if (section.sectionKey === 'references') {
+        if (publicEntries.length > 0) data.references = flattenEntry(publicEntries[0]);
+      }
     }
   }
 
@@ -302,6 +365,11 @@ function getSectionKey(vaultKey: string): SectionKey {
     education: 'education',
     skills: 'skills',
     legal: 'legal_compliance',
+    projects: 'projects',
+    certifications: 'certifications',
+    achievements: 'achievements',
+    publications: 'publications',
+    references: 'references',
   };
 
   return mapping[prefix] || 'personal_info';
