@@ -16,6 +16,36 @@ Personal Data Protocol for the job market. Users store profile data once, contro
 
 ## Setup
 
+### Seed development data
+
+See [backend/scripts/README.md](backend/scripts/README.md) for commands, demo account credentials, and local and Docker usage.
+
+### Run everything with Docker Compose
+
+From the project root, start MongoDB, the API, and the Vite frontend together:
+
+```bash
+docker compose up --build
+```
+
+Open the app at `http://localhost:3000` and the API at `http://localhost:5000`. Compose reads backend secrets and OAuth settings from `backend/.env`; update those values there before starting if needed. MongoDB data persists in a named Docker volume. Stop the services with `Ctrl+C`, or run `docker compose down` in another terminal. To also remove the database data, run `docker compose down -v`.
+
+Each app can also be started individually with Docker:
+
+```bash
+cd backend
+docker compose up --build
+```
+
+This starts the backend and its MongoDB service. For just the frontend container, with the API already running on your machine at port 5000:
+
+```bash
+cd frontend
+docker compose up --build
+```
+
+The existing `npm run dev` workflow remains available from each app folder. For that local workflow, start MongoDB separately and keep `MONGO_URI` in `backend/.env` pointed at localhost.
+
 ### 1. Prerequisites
 
 - Node.js v18+
