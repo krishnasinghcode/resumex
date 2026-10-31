@@ -1,14 +1,13 @@
 import { Types } from 'mongoose';
 import { VaultSectionModel } from '../models/VaultSection';
-import { VaultMetaModel } from '../models/VaultMeta';
 import { ALL_SECTION_KEYS, SINGLETON_SECTIONS, SectionKey } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface FormField {
-  id: string;           // DOM identifier
-  name: string;         // field name/label
-  type: string;         // text, email, tel, date, etc.
+  id: string;
+  name: string;
+  type: string;
   placeholder?: string;
   required?: boolean;
 }
@@ -16,17 +15,22 @@ export interface FormField {
 export interface FieldMatch {
   fieldId: string;
   fieldName: string;
-  matchedKey: string;      // The vault key that matched
-  matchedValue: any;       // The actual value
-  confidence: number;      // 0-1 score
+  matchedKey: string;
+  matchedValue: any;
+  confidence: number;
   section: SectionKey;
 }
 
-// ─── Field Matching ───────────────────────────────────────────────────────────
+export interface SearchResult {
+  section: string;
+  fieldName: string;
+  value: any;
+  path: string; // e.g. "personal.email"
+}
 
-// Mapping of common form field patterns to vault keys
+// ─── Field Patterns ───────────────────────────────────────────────────────────
+
 const FIELD_PATTERNS: Record<string, string[]> = {
-  // Personal Info
   'personal.firstName': ['first name', 'firstname', 'fname', 'given name', 'forename'],
   'personal.lastName': ['last name', 'lastname', 'lname', 'surname', 'family name'],
   'personal.fullName': ['full name', 'fullname', 'name', 'your name', 'applicant name'],
@@ -42,58 +46,36 @@ const FIELD_PATTERNS: Record<string, string[]> = {
   'personal.github': ['github', 'github profile', 'github username', 'github url'],
   'personal.portfolio': ['portfolio', 'portfolio url', 'website', 'personal website'],
 
-  // Professional
   'professional.headline': ['headline', 'professional headline', 'title', 'tagline'],
   'professional.bio': ['bio', 'summary', 'about', 'professional summary', 'profile'],
   'professional.yearsOfExperience': ['years of experience', 'experience years', 'total experience'],
   'professional.currentRole': ['current role', 'current position', 'current job', 'job title'],
 
-  // Work Experience (latest/current)
   'work.company': ['company', 'current company', 'employer', 'organization', 'company name'],
   'work.title': ['job title', 'position', 'role', 'current title'],
   'work.startDate': ['start date', 'joined date', 'from date', 'employment start'],
   'work.endDate': ['end date', 'to date', 'employment end'],
 
-  // Education (latest)
   'education.institution': ['university', 'college', 'school', 'institution', 'educational institution'],
   'education.degree': ['degree', 'qualification', 'education level'],
   'education.field': ['field of study', 'major', 'specialization', 'discipline', 'course'],
   'education.gpa': ['gpa', 'grade point average', 'cgpa', 'marks', 'percentage'],
-  'education.graduationDate': ['graduation date', 'completion date', 'end date'],
 
-  // Skills (will need special handling for multi-select)
   'skills': ['skills', 'technical skills', 'core skills', 'key skills', 'competencies'],
 
-  // Legal/Compliance
   'legal.workAuthorization': ['work authorization', 'authorization', 'visa status', 'work permit'],
   'legal.requiresSponsorship': ['require sponsorship', 'need sponsorship', 'visa sponsorship'],
   'legal.willingToRelocate': ['willing to relocate', 'open to relocation', 'relocation'],
 };
 
-// Normalize field name for matching
+// ─── Matching Helpers ─────────────────────────────────────────────────────────
+
 function normalizeFieldName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '') // Remove special chars
-    .replace(/\s+/g, ' ')         // Normalize spaces
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
-}
-
-// Calculate similarity score between two strings (simple Levenshtein-based)
-function calculateSimilarity(str1: string, str2: string): number {
-  const s1 = normalizeFieldName(str1);
-  const s2 = normalizeFieldName(str2);
-
-  // Exact match
-  if (s1 === s2) return 1.0;
-
-  // Contains match
-  if (s1.includes(s2) || s2.includes(s1)) return 0.85;
-
-  // Levenshtein distance for fuzzy matching
-  const distance = levenshteinDistance(s1, s2);
-  const maxLen = Math.max(s1.length, s2.length);
-  return 1 - distance / maxLen;
 }
 
 function levenshteinDistance(str1: string, str2: string): number {
@@ -124,7 +106,18 @@ function levenshteinDistance(str1: string, str2: string): number {
   return matrix[str2.length][str1.length];
 }
 
-// Find best matching vault key for a form field
+function calculateSimilarity(str1: string, str2: string): number {
+  const s1 = normalizeFieldName(str1);
+  const s2 = normalizeFieldName(str2);
+
+  if (s1 === s2) return 1.0;
+  if (s1.includes(s2) || s2.includes(s1)) return 0.85;
+
+  const distance = levenshteinDistance(s1, s2);
+  const maxLen = Math.max(s1.length, s2.length);
+  return 1 - distance / maxLen;
+}
+
 function findBestMatch(fieldName: string, fieldType: string): { key: string; confidence: number } | null {
   let bestMatch: { key: string; confidence: number } | null = null;
 
@@ -132,7 +125,6 @@ function findBestMatch(fieldName: string, fieldType: string): { key: string; con
     for (const pattern of patterns) {
       const confidence = calculateSimilarity(fieldName, pattern);
 
-      // Boost confidence if field type matches expected type
       let adjustedConfidence = confidence;
       if (fieldType === 'email' && vaultKey.includes('email')) adjustedConfidence += 0.1;
       if (fieldType === 'tel' && vaultKey.includes('phone')) adjustedConfidence += 0.1;
@@ -153,9 +145,7 @@ export async function matchFormFields(
   userId: string,
   fields: FormField[]
 ): Promise<FieldMatch[]> {
-  // Get user's autofill data
   const autofillData = await getAutofillData(userId);
-
   const matches: FieldMatch[] = [];
 
   for (const field of fields) {
@@ -165,9 +155,6 @@ export async function matchFormFields(
       const value = getNestedValue(autofillData, match.key);
 
       if (value !== undefined && value !== null) {
-        // Determine which section this belongs to
-        const section = match.key.split('.')[0] as SectionKey;
-
         matches.push({
           fieldId: field.id,
           fieldName: field.name,
@@ -186,31 +173,24 @@ export async function matchFormFields(
 export async function getAutofillData(userId: string): Promise<Record<string, any>> {
   const userIdObj = new Types.ObjectId(userId);
 
-  // Fetch all sections for this user
   const sections = await VaultSectionModel.find({
     userId: userIdObj,
-    isPrivate: false, // Only non-private sections
+    isPrivate: false,
   });
 
   const data: Record<string, any> = {};
 
   for (const section of sections) {
-    // Filter out private entries
     const publicEntries = section.entries.filter((entry: any) => !entry.isPrivate);
 
     if (publicEntries.length === 0) continue;
 
-    // Handle based on section type
     if (SINGLETON_SECTIONS.includes(section.sectionKey as SectionKey)) {
-      // Singleton: take the first (and only) entry
       const entry = publicEntries[0];
       if (entry) {
         data[section.sectionKey] = flattenEntry(entry);
       }
     } else {
-      // Collection: for auto-fill, we typically want the "latest" or "primary" entry
-      // Let's prioritize current entries, then most recent
-
       if (section.sectionKey === 'work_experience') {
         const current = publicEntries.find((e: any) => e.isCurrent);
         const latest = current || publicEntries.sort((a: any, b: any) => 
@@ -234,13 +214,11 @@ export async function getAutofillData(userId: string): Promise<Record<string, an
       }
 
       if (section.sectionKey === 'skills') {
-        // For skills, provide array of skill names
         data.skills = publicEntries.map((e: any) => e.name);
       }
     }
   }
 
-  // Map section keys to autofill-friendly names
   if (data.personal_info) {
     data.personal = data.personal_info;
     delete data.personal_info;
@@ -259,6 +237,46 @@ export async function getAutofillData(userId: string): Promise<Record<string, an
   return data;
 }
 
+// ─── NEW: Search Vault ────────────────────────────────────────────────────────
+
+export async function searchVault(userId: string, query: string): Promise<SearchResult[]> {
+  const userIdObj = new Types.ObjectId(userId);
+  const normalizedQuery = normalizeFieldName(query);
+  const results: SearchResult[] = [];
+
+  const sections = await VaultSectionModel.find({
+    userId: userIdObj,
+    isPrivate: false,
+  });
+
+  for (const section of sections) {
+    const publicEntries = section.entries.filter((entry: any) => !entry.isPrivate);
+
+    for (const entry of publicEntries) {
+      const flattened = flattenEntry(entry);
+
+      for (const [key, value] of Object.entries(flattened)) {
+        if (!value) continue;
+
+        const normalizedKey = normalizeFieldName(key);
+        const normalizedValue = normalizeFieldName(String(value));
+
+        // Match if query appears in field name OR value
+        if (normalizedKey.includes(normalizedQuery) || normalizedValue.includes(normalizedQuery)) {
+          results.push({
+            section: formatSectionName(section.sectionKey),
+            fieldName: formatFieldName(key),
+            value: value,
+            path: `${section.sectionKey}.${key}`,
+          });
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
 function flattenEntry(entry: any): Record<string, any> {
@@ -268,7 +286,6 @@ function flattenEntry(entry: any): Record<string, any> {
     if (key === '_id' || key === 'isPrivate') continue;
 
     if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-      // Nested object (like address)
       for (const [nestedKey, nestedValue] of Object.entries(value)) {
         flattened[`${key}.${nestedKey}`] = nestedValue;
       }
@@ -305,4 +322,22 @@ function getSectionKey(vaultKey: string): SectionKey {
   };
 
   return mapping[prefix] || 'personal_info';
+}
+
+function formatSectionName(key: string): string {
+  return key
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function formatFieldName(key: string): string {
+  return key
+    .split('.')
+    .pop()!
+    .replace(/([A-Z])/g, ' $1')
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
