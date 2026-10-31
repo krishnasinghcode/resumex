@@ -1,0 +1,32 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/resumex
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  mongodb_data:
+  backend_node_modules:

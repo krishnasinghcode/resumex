@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import { Card } from "./components/ui/card";
-import { Badge } from "./components/ui/badge";
+import { VaultBrowser } from "./components/VaultBrowser";
+import { ConfirmationModal } from "./components/ConfirmationModal";
+import { apiService, FieldMatch } from "./services/api.service";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 
 interface ParsedField {
   id: string;
@@ -17,13 +19,6 @@ interface FormData {
   fields: ParsedField[];
 }
 
-interface FieldMatch {
-  fieldId: string;
-  fieldName: string;
-  matchedValue: any;
-  confidence: number;
-}
-
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +28,7 @@ function App() {
   // Form auto-fill state
   const [currentForm, setCurrentForm] = useState<FormData | null>(null);
   const [matches, setMatches] = useState<FieldMatch[]>([]);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [filling, setFilling] = useState(false);
 
   // ✅ Check login on popup open
@@ -40,7 +36,7 @@ function App() {
     chrome.storage.local.get(["accessToken"], (result) => {
       if (result.accessToken) {
         setIsLoggedIn(true);
-        detectForm(); // Auto-detect form on current tab
+        detectForm();
       }
     });
   }, []);
@@ -128,37 +124,24 @@ function App() {
   // ─── MATCH FIELDS ──────────────────────────────────────
   const matchFields = async (fields: ParsedField[]) => {
     try {
-      const token = await getAccessToken();
-
-      const res = await fetch("http://localhost:5000/api/extension/match-fields", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ fields }),
-      });
-
-      const response = await res.json();
-
-      if (response.success) {
-        setMatches(response.data || []);
-      }
+      const results = await apiService.matchFields(fields);
+      setMatches(results);
     } catch (err) {
       console.error("Failed to match fields:", err);
     }
   };
 
   // ─── AUTO-FILL FORM ────────────────────────────────────
-  const handleAutoFill = async () => {
+  const handleAutoFill = async (selectedMatches: FieldMatch[]) => {
     setFilling(true);
+    setShowConfirmation(false);
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
       if (!tab.id) return;
 
-      const instructions = matches.map((match) => ({
+      const instructions = selectedMatches.map((match) => ({
         fieldId: match.fieldId,
         value: match.matchedValue,
       }));
@@ -181,19 +164,10 @@ function App() {
     }
   };
 
-  // ─── HELPERS ───────────────────────────────────────────
-  const getAccessToken = (): Promise<string> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(["accessToken"], (result) => {
-        resolve(result.accessToken || "");
-      });
-    });
-  };
-
   // ─── UI ────────────────────────────────────────────────
   if (!isLoggedIn) {
     return (
-      <div className="p-4 w-[380px]">
+      <div className="p-4 w-[400px]">
         <h1 className="text-xl font-bold mb-4">Login to AutoVault</h1>
 
         <Input
@@ -218,53 +192,108 @@ function App() {
   }
 
   return (
-    <div className="p-4 w-[380px]">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">AutoVault</h1>
+    <div className="w-[400px] h-[600px] flex flex-col">
+      {/* Header */}
+      <div className="flex justify-between items-center p-4 border-b bg-white">
+        <h1 className="text-lg font-bold">AutoVault</h1>
         <Button variant="ghost" size="sm" onClick={handleLogout}>
           Logout
         </Button>
       </div>
 
-      {currentForm ? (
-        <Card className="p-4">
-          <h2 className="font-semibold mb-2">{currentForm.title}</h2>
-          <p className="text-sm text-gray-600 mb-3">
-            {currentForm.fields.length} fields detected
-          </p>
+      {/* Tabs */}
+      <Tabs defaultValue="autofill" className="flex-1 flex flex-col">
+        <TabsList className="mx-4 mt-2">
+          <TabsTrigger value="autofill" className="flex-1">Auto-fill</TabsTrigger>
+          <TabsTrigger value="vault" className="flex-1">Vault</TabsTrigger>
+        </TabsList>
 
-          {matches.length > 0 ? (
-            <>
-              <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-                {matches.map((match) => (
-                  <div key={match.fieldId} className="flex justify-between items-center text-sm">
-                    <span className="truncate flex-1">{match.fieldName}</span>
-                    <Badge variant={match.confidence > 0.8 ? "default" : "secondary"}>
-                      {Math.round(match.confidence * 100)}%
-                    </Badge>
-                  </div>
-                ))}
+        {/* Auto-fill Tab */}
+        <TabsContent value="autofill" className="flex-1 overflow-y-auto p-4">
+          {currentForm ? (
+            <div className="space-y-4">
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <h2 className="font-semibold mb-1">{currentForm.title}</h2>
+                <p className="text-sm text-gray-600">
+                  {currentForm.fields.length} fields detected
+                </p>
               </div>
 
-              <Button
-                className="w-full"
-                onClick={handleAutoFill}
-                disabled={filling}
-              >
-                {filling ? "Filling..." : `Auto-fill ${matches.length} fields`}
-              </Button>
-            </>
+              {matches.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      {matches.length} field{matches.length !== 1 ? 's' : ''} matched
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Avg: {Math.round(matches.reduce((sum, m) => sum + m.confidence, 0) / matches.length * 100)}%
+                    </span>
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={() => setShowConfirmation(true)}
+                    disabled={filling}
+                  >
+                    {filling ? "Filling..." : "Review & Fill"}
+                  </Button>
+
+                  {/* Quick preview */}
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {matches.slice(0, 5).map((match) => (
+                      <div
+                        key={match.fieldId}
+                        className="text-xs p-2 bg-white border rounded flex justify-between"
+                      >
+                        <span className="truncate flex-1">{match.fieldName}</span>
+                        <span className={`font-medium ${
+                          match.confidence > 0.8 ? 'text-green-600' :
+                          match.confidence > 0.7 ? 'text-blue-600' :
+                          'text-yellow-600'
+                        }`}>
+                          {Math.round(match.confidence * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                    {matches.length > 5 && (
+                      <p className="text-xs text-gray-500 text-center">
+                        +{matches.length - 5} more fields
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-500">No matching fields found</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Try the Vault tab to manually copy data
+                  </p>
+                </div>
+              )}
+            </div>
           ) : (
-            <p className="text-sm text-gray-500">No matching fields found in your vault</p>
+            <div className="text-center py-8">
+              <p className="text-sm text-gray-500 mb-3">No form detected on this page</p>
+              <Button onClick={detectForm} variant="outline" size="sm">
+                Scan for Forms
+              </Button>
+            </div>
           )}
-        </Card>
-      ) : (
-        <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500 mb-3">No form detected on this page</p>
-          <Button onClick={detectForm} variant="outline" size="sm">
-            Scan for Forms
-          </Button>
-        </Card>
+        </TabsContent>
+
+        {/* Vault Tab */}
+        <TabsContent value="vault" className="flex-1 overflow-y-auto p-4">
+          <VaultBrowser />
+        </TabsContent>
+      </Tabs>
+
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <ConfirmationModal
+          matches={matches}
+          onConfirm={handleAutoFill}
+          onCancel={() => setShowConfirmation(false)}
+        />
       )}
     </div>
   );
