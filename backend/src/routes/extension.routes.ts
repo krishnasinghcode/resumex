@@ -13,4 +13,7 @@ router.post('/match-fields', ExtensionController.matchFields);
 // Get minimal data snapshot for auto-fill (respects privacy)
 router.get('/autofill-data', ExtensionController.getAutofillData);
 
+// NEW: Search vault data for manual copy
+router.get('/search', ExtensionController.searchVault);
+
 export default router;

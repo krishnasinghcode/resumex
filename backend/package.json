@@ -7,11 +7,16 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "seed": "npm run seed:user && npm run seed:company",
+    "seed:user": "ts-node-dev --transpile-only --exit-child scripts/seedUser.ts",
+    "seed:company": "ts-node-dev --transpile-only --exit-child scripts/seedCompany.ts",
+    "db:clear": "ts-node-dev --transpile-only --exit-child scripts/clearDb.ts",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --runInBand --watch",
     "test:cov": "jest --runInBand --forceExit --coverage"
   },
   "dependencies": {
+    "alasql": "^4.19.1",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

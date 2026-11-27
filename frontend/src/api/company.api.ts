@@ -31,6 +31,9 @@ export const companyApi = {
   getRefIDCandidates: (refCode: string) =>
     api.get(`/api/company/refid/${refCode}/candidates`),
 
+  runSandboxQuery: (refCode: string, query: string) =>
+    api.post(`/api/company/refid/${refCode}/sandbox`, { query }),
+
   getCandidateData: (userId: string, permissionId: string) =>
     api.get(`/api/company/candidate/${userId}?permissionId=${permissionId}`),
   

@@ -10,6 +10,7 @@ import * as RefIDService from '../services/refid.service';
 import { AccessLogModel } from '../models/AccessLog';
 import { CompanyModel } from '../models/Company';
 import { PermissionModel } from '../models/Permission';
+import { RefIDModel } from '../models/RefID';
 import { AppError } from '../utils/AppError';
 import type { CompanyRequest } from '../types';
 import { env } from '../config/env';
@@ -160,5 +161,37 @@ router.get(
     sendSuccess(res, 'Candidate data fetched', data);
   })
 );
+
+router.post('/refid/:refCode/sandbox', protectCompany, asyncHandler(async (req: CompanyRequest, res: Response) => {
+  const { query } = req.body;
+  if (!query) throw new AppError('SQL query is required', 400);
+
+  const refID = await RefIDModel.findOne({ code: req.params.refCode, companyId: req.company!.userId });
+  if (!refID) throw new AppError('RefID not found or unauthorized', 404);
+
+  const permissions = await PermissionModel.find({
+    refId: refID._id,
+    isRevoked: false,
+    expiresAt: { $gt: new Date() },
+  }).populate('userId', 'displayName email');
+
+  const candidatesData = await Promise.all(permissions.map(async (perm) => {
+    const data = await AccessService.getCandidateData(perm, req.ip || 'unknown', 'Sandbox');
+    return {
+      _candidateId: perm.userId._id,
+      displayName: (perm.userId as any).displayName,
+      email: (perm.userId as any).email,
+      ...data
+    };
+  }));
+
+  try {
+    const alasql = require('alasql');
+    const result = alasql(query, [candidatesData]);
+    sendSuccess(res, 'Sandbox query executed', { result });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: `SQL Error: ${err.message}` });
+  }
+}));
 
 export default router;

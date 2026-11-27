@@ -21,7 +21,9 @@ app.use(helmet());
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  process.env.EXTENSION_URL
+  process.env.EXTENSION_URL,
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
 ]
 .filter(Boolean)
 .map(o => o.trim());
